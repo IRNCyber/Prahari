@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from agent.loop import run
@@ -14,6 +14,12 @@ from target_app.state import read_state
 from verifier.report import verify
 from prahari.policy import allow_approval
 from prahari.store import audit, recent_audit
+from prahari.auth import authorise_approval, provider_status
+from prahari.observability import otel_status
+from agent.integrations.deployment import DeploymentClient
+from agent.integrations.notifications import SlackNotifier, TelegramNotifier
+from agent.integrations.postgres import postgres_configured
+from agent.integrations.sentry import SentryClient
 
 ROOT = Path(__file__).resolve().parents[1]
 app = FastAPI(title="Prahari Dashboard")
@@ -36,6 +42,19 @@ def incidents() -> list[dict[str, object]]:
     return recent_audit()
 
 
+@app.get("/api/integrations")
+def integrations() -> dict[str, object]:
+    return {
+        "sentry": SentryClient().configured(),
+        "slack": SlackNotifier().configured(),
+        "telegram": TelegramNotifier().configured(),
+        "postgres": postgres_configured(),
+        "deployment": DeploymentClient().readiness(),
+        "auth": provider_status(),
+        "otel": otel_status(),
+    }
+
+
 @app.post("/api/control/{scenario}")
 def control(scenario: str) -> dict[str, object]:
     result = heal() if scenario == "heal" else inject(scenario)
@@ -54,7 +73,9 @@ def verification() -> dict[str, object]:
 
 
 @app.post("/api/approve")
-def approve(approver: str = "demo-operator") -> dict[str, object]:
+def approve(approver: str = "demo-operator", x_prahari_approver_token: str | None = Header(default=None)) -> dict[str, object]:
+    if not authorise_approval(x_prahari_approver_token):
+        raise HTTPException(status_code=401, detail="A valid approver token is required.")
     report = verify().to_dict()
     decision = allow_approval(bool(report["passed"]), approver)
     if not decision.allowed:

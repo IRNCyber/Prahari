@@ -48,6 +48,16 @@ The project includes connector contracts for production telemetry, logging,
 deployment, and notifications in `agent/adapters.py`; supply organisation-specific
 implementations and credentials outside the demo repository.
 
+## External integrations
+
+`GET /api/integrations` reports which configured adapters are ready without
+revealing secrets. Incident reports prepare Slack, Telegram, and Sentry delivery
+metadata but do not send external notifications implicitly. A valid
+`X-Prahari-Approver-Token` header is required for the approval endpoint.
+
+PagerDuty and deployment stay disabled until their respective credentials are
+configured; this is a deliberate safe failure rather than a simulated action.
+
 ## Layout
 
 ```text

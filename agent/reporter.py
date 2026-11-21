@@ -4,6 +4,8 @@ from agent.tools import LocalTools
 from pathlib import Path
 
 from prahari.store import audit
+from agent.integrations.notifications import SlackNotifier, TelegramNotifier
+from agent.integrations.sentry import SentryClient
 
 
 def create_pr(diagnosis: str, verification: dict[str, object]) -> dict[str, object]:
@@ -19,4 +21,12 @@ def create_pr(diagnosis: str, verification: dict[str, object]) -> dict[str, obje
     postmortem = Path(__file__).resolve().parents[1] / "artifacts" / "postmortem.md"
     postmortem.write_text("# Blameless postmortem\n\n## Summary\n" + diagnosis + "\n\n## Verification\n" + str(verification), encoding="utf-8")
     audit("postmortem_created", {"path": str(postmortem)}, actor="reporter")
+    message = f"Prahari: verified remediation awaiting approval — {diagnosis}"
+    delivery = []
+    for name, notifier in (("slack", SlackNotifier()), ("telegram", TelegramNotifier())):
+        if notifier.configured():
+            delivery.append(name)
+    if SentryClient().configured():
+        delivery.append("sentry")
+    audit("external_notification_ready", {"channels": delivery, "message": message}, actor="reporter")
     return result

@@ -1,0 +1,48 @@
+# render.yaml  (put at the repo root, then in Render: New > Blueprint > pick the Prahari repo)
+#
+# Creates ONE staging web service + ONE staging database, both on the free plan.
+# autoDeploy is false on purpose: only Prahari's deploy_staging tool (or you) triggers deploys,
+# so a push to main can never silently change staging mid-verification.
+#
+# Free plan caveats: the service sleeps after ~15 min idle and takes about a minute to wake;
+# the free database expires after a limited time (check Render's current docs).
+# deploy_staging waits for /health and the verifier re-seeds sample data on every run.
+
+services:
+  - type: web
+    name: prahari-staging
+    runtime: docker
+    plan: free
+    region: singapore            # closest to India; change if you prefer
+    branch: main                 # deploy_staging switches this to the agent's patch branch
+    dockerfilePath: ./target_app/Dockerfile
+    dockerContext: ./target_app
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: PRAHARI_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prahari-staging-db
+          property: connectionString
+      - key: SENTRY_DSN
+        sync: false              # you paste this in the Render dashboard; never commit it
+      - key: PORT
+        value: "8000"
+
+databases:
+  - name: prahari-staging-db
+    plan: free
+    region: singapore
+    databaseName: prahari_staging
+    user: prahari
+
+# NOTE: Render's connection string starts with postgres:// or postgresql://.
+# SQLAlchemy with psycopg3 needs postgresql+psycopg://, so normalize it in target_app:
+#
+#   url = os.environ["DATABASE_URL"]
+#   if url.startswith("postgres://"):
+#       url = url.replace("postgres://", "postgresql+psycopg://", 1)
+#   elif url.startswith("postgresql://"):
+#       url = url.replace("postgresql://", "postgresql+psycopg://", 1)

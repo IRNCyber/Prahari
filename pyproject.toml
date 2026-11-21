@@ -10,6 +10,7 @@ dependencies = [
   "prometheus-client>=0.22,<1.0",
   "structlog>=25.4,<26.0",
   "python-dotenv>=1.1,<2.0",
+  "sentry-sdk>=2.68,<3.0",
 ]
 
 [project.optional-dependencies]
