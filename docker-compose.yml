@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: prahari
+      POSTGRES_USER: prahari
+      POSTGRES_PASSWORD: prahari
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prahari -d prahari"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  target_app:
+    build: .
+    command: python main.py serve
+    ports:
+      - "8000:8000"
+    environment:
+      PRAHARI_DATA_DIR: /data
+    volumes:
+      - prahari_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  dashboard:
+    build: .
+    command: python main.py dashboard
+    ports:
+      - "8080:8080"
+    depends_on:
+      target_app:
+        condition: service_healthy
+    environment:
+      PRAHARI_DATA_DIR: /data
+    volumes:
+      - prahari_data:/data
+  detector:
+    build: .
+    command: python -m detector.watcher
+    environment:
+      PRAHARI_DATA_DIR: /data
+    volumes:
+      - prahari_data:/data
+    depends_on:
+      target_app:
+        condition: service_healthy
+
+volumes:
+  prahari_data:
+  postgres_data:
