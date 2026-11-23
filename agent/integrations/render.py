@@ -16,7 +16,7 @@ class RenderConfig:
     production_service_id: str
 
     @classmethod
-    def from_environment(cls) -> "RenderConfig":
+    def from_environment(cls) -> RenderConfig:
         return cls(os.getenv("RENDER_API_KEY", ""), os.getenv("RENDER_STAGING_SERVICE_ID", ""), os.getenv("RENDER_PRODUCTION_SERVICE_ID", ""))
 
 

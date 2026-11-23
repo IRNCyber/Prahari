@@ -8,7 +8,7 @@ def read_state() -> dict[str, object]:
 
 
 def set_scenario(scenario: str | None) -> dict[str, object]:
-    state = {"scenario": scenario}
+    state: dict[str, object] = {"scenario": scenario}
     set_state(state)
     audit("fault_state_changed", state, actor="fault-injector")
     return state

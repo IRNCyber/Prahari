@@ -1,16 +1,53 @@
+x-agent-environment: &agent-environment
+  PRAHARI_ENV: ${PRAHARI_ENV:-development}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-prahari}:${POSTGRES_PASSWORD:-prahari}@postgres:5432/${POSTGRES_DB:-prahari}
+  PRAHARI_DATA_DIR: /data
+  TARGET_BASE_URL: http://target_app:8000
+  STAGING_BASE_URL: http://target_app:8000
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-3-7-sonnet-latest}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  LOKI_URL: ${LOKI_URL:-}
+  LOKI_TENANT_ID: ${LOKI_TENANT_ID:-}
+  LOKI_BEARER_TOKEN: ${LOKI_BEARER_TOKEN:-}
+  DATADOG_API_KEY: ${DATADOG_API_KEY:-}
+  DATADOG_APP_KEY: ${DATADOG_APP_KEY:-}
+  DATADOG_SITE: ${DATADOG_SITE:-datadoghq.com}
+  AUTH_PROVIDER: ${AUTH_PROVIDER:-none}
+  AUTH_ISSUER_URL: ${AUTH_ISSUER_URL:-}
+  AUTH_AUDIENCE: ${AUTH_AUDIENCE:-}
+  PRAHARI_APPROVER_TOKEN: ${PRAHARI_APPROVER_TOKEN:-}
+  PRAHARI_SLO_WINDOW_SECONDS: ${PRAHARI_SLO_WINDOW_SECONDS:-300}
+  PRAHARI_AUDIT_RETENTION_DAYS: ${PRAHARI_AUDIT_RETENTION_DAYS:-180}
+  GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+  GITLAB_WEBHOOK_SECRET: ${GITLAB_WEBHOOK_SECRET:-}
+  DEPLOYMENT_PROVIDER: ${DEPLOYMENT_PROVIDER:-}
+  RENDER_API_KEY: ${RENDER_API_KEY:-}
+  RENDER_STAGING_SERVICE_ID: ${RENDER_STAGING_SERVICE_ID:-}
+  RENDER_PRODUCTION_SERVICE_ID: ${RENDER_PRODUCTION_SERVICE_ID:-}
+  KOYEB_API_TOKEN: ${KOYEB_API_TOKEN:-}
+  KOYEB_STAGING_SERVICE_ID: ${KOYEB_STAGING_SERVICE_ID:-}
+  KOYEB_PRODUCTION_SERVICE_ID: ${KOYEB_PRODUCTION_SERVICE_ID:-}
+  PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+  SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+  PRAHARI_SEND_NOTIFICATIONS: ${PRAHARI_SEND_NOTIFICATIONS:-false}
+
 services:
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
-      POSTGRES_DB: prahari
-      POSTGRES_USER: prahari
-      POSTGRES_PASSWORD: prahari
+      POSTGRES_DB: ${POSTGRES_DB:-prahari}
+      POSTGRES_USER: ${POSTGRES_USER:-prahari}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prahari}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U prahari -d prahari"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,37 +58,84 @@ services:
     ports:
       - "8000:8000"
     environment:
+      PRAHARI_ENV: ${PRAHARI_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-prahari}:${POSTGRES_PASSWORD:-prahari}@postgres:5432/${POSTGRES_DB:-prahari}
       PRAHARI_DATA_DIR: /data
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      PRAHARI_SLO_WINDOW_SECONDS: ${PRAHARI_SLO_WINDOW_SECONDS:-300}
+      PRAHARI_AUDIT_RETENTION_DAYS: ${PRAHARI_AUDIT_RETENTION_DAYS:-180}
     volumes:
       - prahari_data:/data
+      - prahari_artifacts:/app/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 3s
       retries: 5
+
   dashboard:
     build: .
     command: python main.py dashboard
     ports:
       - "8080:8080"
+    environment: *agent-environment
+    volumes:
+      - prahari_data:/data
+      - prahari_artifacts:/app/artifacts
     depends_on:
       target_app:
         condition: service_healthy
-    environment:
-      PRAHARI_DATA_DIR: /data
-    volumes:
-      - prahari_data:/data
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   detector:
     build: .
-    command: python -m detector.watcher
+    command: uvicorn detector.service:app --host 0.0.0.0 --port 8081
+    ports:
+      - "127.0.0.1:8081:8081"
     environment:
-      PRAHARI_DATA_DIR: /data
+      <<: *agent-environment
+      DETECTOR_AUTOSTART: "true"
+      DETECTOR_POLL_INTERVAL: ${DETECTOR_POLL_INTERVAL:-10}
     volumes:
       - prahari_data:/data
+      - prahari_artifacts:/app/artifacts
     depends_on:
       target_app:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   prahari_data:
+  prahari_artifacts:
   postgres_data:

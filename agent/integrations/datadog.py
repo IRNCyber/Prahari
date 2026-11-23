@@ -17,7 +17,7 @@ class DatadogConfig:
     site: str
 
     @classmethod
-    def from_environment(cls) -> "DatadogConfig":
+    def from_environment(cls) -> DatadogConfig:
         config = cls(
             api_key=os.getenv("DATADOG_API_KEY", ""),
             app_key=os.getenv("DATADOG_APP_KEY", ""),

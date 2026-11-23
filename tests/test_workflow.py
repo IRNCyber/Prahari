@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+import agent.loop as agent_loop
 from agent.loop import run
 from dashboard.app import app
 from faults.scenarios import heal, inject
@@ -22,7 +23,8 @@ def test_approval_policy_requires_named_human_and_checks() -> None:
     assert allow_approval(True, "reviewer").allowed
 
 
-def test_dependency_outage_escalates_without_patch() -> None:
+def test_dependency_outage_escalates_without_patch(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(agent_loop, "ROOT", tmp_path)
     inject("dep_outage")
     result = run()
     assert result["status"] == "escalated"

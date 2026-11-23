@@ -1,0 +1,10 @@
+service: checkout
+window_seconds: 300
+error_rate:
+  objective: 0.99
+  alert_threshold: 0.05
+latency:
+  p95_target_ms: 500
+  alert_threshold_ms: 1500
+alerting:
+  suppression_seconds: 300

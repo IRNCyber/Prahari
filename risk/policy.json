@@ -1,0 +1,12 @@
+{
+  "max_changed_files": 3,
+  "blocked_paths": [
+    "prahari/",
+    "auth/",
+    "dashboard/",
+    "Dockerfile",
+    "docker-compose.yml"
+  ],
+  "production_requires_human": true,
+  "require_rollback_plan": true
+}

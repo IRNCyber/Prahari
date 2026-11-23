@@ -1,0 +1,33 @@
+{
+  "deployments": [
+    {
+      "revision": "a1b2c3d",
+      "environment": "production",
+      "state": "success"
+    },
+    {
+      "revision": "d4e5f6a",
+      "environment": "staging",
+      "state": "success"
+    },
+    {
+      "revision": "b7c8d9e",
+      "environment": "production",
+      "state": "failure"
+    }
+  ],
+  "alerts": [
+    {
+      "fingerprint": "checkout:discount-null",
+      "severity": "medium",
+      "summary": "Checkout rejected a missing discount code",
+      "evidence": ["log-seed-001", "deploy-seed-001"]
+    },
+    {
+      "fingerprint": "checkout:provider-timeout",
+      "severity": "high",
+      "summary": "Payment provider returned repeated timeouts",
+      "evidence": ["log-seed-002", "metric-seed-001"]
+    }
+  ]
+}

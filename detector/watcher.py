@@ -5,6 +5,9 @@ from __future__ import annotations
 import argparse
 import time
 
+import httpx
+from sqlalchemy.exc import SQLAlchemyError
+
 from detector.alert import detect
 from prahari.store import audit
 
@@ -20,8 +23,8 @@ def main() -> int:
             alert = detect(args.url)
             if alert:
                 audit("alert_fired", {"type": alert.type, "evidence": alert.evidence}, actor="detector")
-        except Exception as error:
-            audit("detector_error", {"error": str(error)}, actor="detector")
+        except (httpx.HTTPError, ValueError, OSError, SQLAlchemyError) as error:
+            audit("detector_error", {"error": type(error).__name__, "message": str(error)[:300]}, actor="detector")
         if args.once:
             return 0
         time.sleep(args.interval)

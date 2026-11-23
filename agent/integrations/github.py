@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 
@@ -13,7 +16,7 @@ class GitHubConfig:
     api_url: str = "https://api.github.com"
 
     @classmethod
-    def from_environment(cls) -> "GitHubConfig":
+    def from_environment(cls) -> GitHubConfig:
         repository = os.getenv("GITHUB_REPOSITORY", "")
         token = os.getenv("GITHUB_TOKEN", "")
         if not repository or not token:
@@ -51,6 +54,39 @@ class GitHubClient:
             "permissions": data.get("permissions", {}),
             "default_branch": data.get("default_branch"),
         }
+
+    def create_pull_request(self, branch: str, title: str, body: str) -> dict[str, object]:
+        if not re.fullmatch(r"prahari/fix-[a-f0-9]{10}", branch):
+            raise ValueError("Only a Prahari-generated remediation branch can open a pull request.")
+        repository = self.client.get(f"/repos/{self.config.repository}")
+        repository.raise_for_status()
+        default_branch = repository.json().get("default_branch")
+        if not default_branch:
+            raise RuntimeError("GitHub repository did not report its default branch.")
+        response = self.client.post(
+            f"/repos/{self.config.repository}/pulls",
+            json={"title": title[:250], "body": body[:60_000], "head": branch, "base": default_branch},
+        )
+        response.raise_for_status()
+        data = response.json()
+        return {"number": data["number"], "url": data["html_url"], "state": data["state"], "base": default_branch}
+
+    def push_branch(self, branch: str, worktree: str) -> None:
+        path = Path(worktree).resolve()
+        temp_root = Path(__import__("tempfile").gettempdir()).resolve()
+        if temp_root not in path.parents or not (path.parent / ".git").exists():
+            raise ValueError("Refusing to push a path that is not a generated Prahari worktree.")
+        actual_branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+        if actual_branch != branch:
+            raise ValueError("The worktree branch does not match the approved branch.")
+        subprocess.run(["git", "push", "--set-upstream", "origin", branch], cwd=path, check=True, timeout=120)
 
     def close(self) -> None:
         self.client.close()

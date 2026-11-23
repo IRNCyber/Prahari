@@ -1,0 +1,8 @@
+model: claude-3-7-sonnet-latest
+max_input_tokens: 12000
+max_output_tokens: 2000
+max_tool_calls: 8
+max_usd_per_run: 0.25
+max_usd_per_day: 5.00
+input_usd_per_million_tokens: 3.00
+output_usd_per_million_tokens: 15.00

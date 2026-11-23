@@ -1,4 +1,3 @@
-import os
 
 from agent.integrations.datadog import DatadogConfig
 

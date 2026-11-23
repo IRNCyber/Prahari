@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,13 @@ def allow_patch(path: str, confidence: str, production: bool = False) -> PolicyD
         return PolicyDecision(False, "Production writes require external human approval integration.")
     if confidence not in {"medium", "high"}:
         return PolicyDecision(False, "Low-confidence diagnoses may only escalate or recommend rollback.")
-    if not path.startswith(("target_app/", "faults/")):
+    normalized = PurePosixPath(path.replace("\\", "/"))
+    parts = normalized.parts
+    if ".." in parts:
+        return PolicyDecision(False, "Patch paths may not traverse outside the project.")
+    if parts and parts[0] == "Prahari":
+        normalized = PurePosixPath(*parts[1:])
+    if not normalized.as_posix().startswith(("target_app/", "faults/", "tests/test_")):
         return PolicyDecision(False, "Patch target is outside the approved sample-service scope.")
     return PolicyDecision(True, "Branch-only local patch is permitted.")
 

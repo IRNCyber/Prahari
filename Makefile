@@ -2,7 +2,7 @@
 
 SCENARIO ?= bad_deploy
 
-.PHONY: help up break heal test investigate dashboard monitor
+.PHONY: help up break heal test investigate dashboard monitor seed-demo bad-deploy-demo
 
 help:
 	@python main.py --help
@@ -27,3 +27,9 @@ dashboard:
 
 monitor:
 	@python -m detector.watcher --url http://localhost:8000
+
+seed-demo:
+	@python main.py seed-demo
+
+bad-deploy-demo:
+	@python scripts/bad_deploy_demo.py
